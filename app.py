@@ -96,7 +96,7 @@ def main():
     # Post to Multiple Communities (for simplicity, show a button that simulates posting)
     if st.button("Post to Communities"):
         tweet_list = st.text_area("Enter the Tweets to Post", height=200)
-        community_ids = st.text_input("Enter Community IDs (comma-separated)").split(",")
+        community_ids = st.text_input("1506802380897202178, 1516848246395752455, 1691063817848123609, 1694710912400408717, 1500219593847103489, 1848846131360653722, 1494607507213459480, 1847770491798638869").split(",")
         if tweet_list and community_ids:
             api = authenticate_twitter(api_key, api_secret, access_token, access_secret)
             post_to_communities(api, tweet_list.splitlines(), community_ids)
