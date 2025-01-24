@@ -4,6 +4,9 @@ from pytrends.request import TrendReq
 import openai
 import textwrap
 import time
+from PIL import Image
+import requests
+from io import BytesIO
 
 # Authenticate with X API
 def authenticate_twitter(api_key, api_secret, access_token, access_secret):
@@ -40,6 +43,22 @@ def generate_content(trending_topic, call_to_action):
     )
     return response["choices"][0]["message"]["content"].strip()
 
+# Generate Image using OpenAI's DALL·E
+def generate_image(prompt):
+    try:
+        openai.api_key = "YOUR_OPENAI_API_KEY"
+        response = openai.Image.create(
+            prompt=prompt,
+            n=1,
+            size="1024x1024"
+        )
+        image_url = response['data'][0]['url']
+        image_response = requests.get(image_url)
+        image = Image.open(BytesIO(image_response.content))
+        return image, None  # Image generated successfully
+    except Exception as e:
+        return None, f"Error generating image: {str(e)}"  # Error in image generation
+
 # Split Content into Tweets
 def split_into_tweets(content, char_limit=280):
     """
@@ -52,10 +71,10 @@ def main():
     st.title("AI-Generated Twitter Threads")
     
     # Input fields for API keys (optional for advanced users)
-    api_key = st.text_input("Enter your Twitter API Key")
-    api_secret = st.text_input("Enter your Twitter API Secret", type="password")
-    access_token = st.text_input("Enter your Access Token")
-    access_secret = st.text_input("Enter your Access Token Secret", type="password")
+    api_key = st.text_input("SH8ZUiEpdWYw2A7z4w0VUwNXS")
+    api_secret = st.text_input("URfbkpLABf8bp4OcCZa0nCHCvD8AxG4Z4lKEPaXzbNJav2W0Dr", type="password")
+    access_token = st.text_input("1498625403451318276-brPJCjfiTXwdeIkANDESNY5GSCWhkt")
+    access_secret = st.text_input("3Y17XAHO3EbUoxy1YQrFmTEtwuSiDFI6ZEcw5X14FZyF1", type="password")
     
     # Define niches
     niches = [
@@ -79,28 +98,34 @@ def main():
         else:
             st.error("Please provide all the required API keys.")
     
-    # Generate Content
-    if st.button("Generate Content"):
+    # Generate Content and Image
+    if st.button("Generate Content & Image"):
         trending_topic = st.selectbox("Select a Trending Topic", sum(list(get_trending_topics(selected_niches).values()), []))
         if trending_topic:
             content = generate_content(trending_topic, call_to_action)
             st.text_area("Generated Content", content, height=200)
+            
+            # Generate Image for the Tweet
+            image_prompt = f"Generate an image related to {trending_topic}"
+            generated_image, image_error = generate_image(image_prompt)
+            
+            if generated_image:
+                st.image(generated_image, caption="Generated Image for Tweet", use_column_width=True)
+            elif image_error:
+                st.warning(image_error)  # Show image generation error but continue
     
-    # Split Content into Tweets
-    if st.button("Split Content into Tweets"):
-        content_to_split = st.text_area("Enter Content to Split", height=100)
-        if content_to_split:
-            tweet_list = split_into_tweets(content_to_split)
-            st.write("Tweets:", tweet_list)
-    
-    # Post to Multiple Communities (for simplicity, show a button that simulates posting)
+    # Split Content into Tweets and Post to Communities
     if st.button("Post to Communities"):
-        tweet_list = st.text_area("Enter the Tweets to Post", height=200)
+        tweet_list = split_into_tweets(content)
         community_ids = st.text_input("1506802380897202178, 1516848246395752455, 1691063817848123609, 1694710912400408717, 1500219593847103489, 1848846131360653722, 1494607507213459480, 1847770491798638869").split(",")
         if tweet_list and community_ids:
             api = authenticate_twitter(api_key, api_secret, access_token, access_secret)
-            post_to_communities(api, tweet_list.splitlines(), community_ids)
-            st.success("Posted to communities successfully!")
+            post_results = post_to_communities(api, tweet_list, community_ids)
+            
+            if post_results:
+                st.success("Posted to communities successfully!")
+            else:
+                st.error("Some communities could not be posted to. Please check.")
         else:
             st.error("Please enter the tweet content and community IDs.")
 
@@ -108,19 +133,28 @@ def main():
 def post_to_communities(api, tweet_list, community_ids):
     """
     Posts a list of tweets as a thread to multiple communities.
+    Returns a list of successfully posted community IDs.
     """
+    successful_posts = []
     for community_id in community_ids:
         thread_id = None
-        for tweet in tweet_list:
-            if thread_id is None:
-                # First tweet in the thread
-                tweet_status = api.update_status(tweet, place_id=community_id)
-            else:
-                # Subsequent tweets in the thread
-                tweet_status = api.update_status(tweet, in_reply_to_status_id=thread_id)
-            thread_id = tweet_status.id
-            print(f"Posted in Community {community_id}: {tweet}")
-            time.sleep(2)  # Avoid rate limits
+        try:
+            for tweet in tweet_list:
+                if thread_id is None:
+                    # First tweet in the thread
+                    tweet_status = api.update_status(tweet, place_id=community_id)
+                else:
+                    # Subsequent tweets in the thread
+                    tweet_status = api.update_status(tweet, in_reply_to_status_id=thread_id)
+                thread_id = tweet_status.id
+                print(f"Posted in Community {community_id}: {tweet}")
+                successful_posts.append(community_id)
+                time.sleep(2)  # Avoid rate limits
+        except tweepy.TweepError as e:
+            print(f"Failed to post to Community {community_id}: {str(e)}")
+            continue  # Skip this community and continue with the others
+
+    return successful_posts  # Returns communities that were successfully posted to
 
 if __name__ == "__main__":
     main()
