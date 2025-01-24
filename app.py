@@ -30,7 +30,7 @@ def get_trending_topics(niches):
 
 # Generate AI Content
 def generate_content(trending_topic, call_to_action):
-    openai.api_key = "YOUR_OPENAI_API_KEY"
+    openai.api_key = "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"
     prompt = f"""
     Write a detailed Twitter thread about '{trending_topic}'. 
     Make it engaging and insightful. 
